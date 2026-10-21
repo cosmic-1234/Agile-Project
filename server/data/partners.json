@@ -1,11 +1,50 @@
 [
   {
+    "id": "p_b2c08056",
+    "name": "Tech Mahindra Smart Factory Services",
+    "description": "Tech Mahindra Smart Factory Services is a leading provider of smart factory solutions, focusing on enabling intelligent manufacturing through a curated ecosystem of industry-leading partners. They offer a range of services, including connected operations, robotics and automation, and digital transformation. Their solutions aim to improve efficiency, reduce costs, and enhance overall manufacturing performance.",
+    "solutions": [
+      "MES",
+      "Predictive Maintenance",
+      "Digital Twin",
+      "Connected Operations",
+      "Smart Factory Consulting"
+    ],
+    "capabilities": [
+      "IoT",
+      "SAP",
+      "AWS IoT",
+      "Computer Vision",
+      "Industrial Analytics"
+    ],
+    "industries": [
+      "Manufacturing"
+    ],
+    "useCases": [
+      "Implementation of a cloud-native MES for a food processing company, resulting in improved traceability and compliance with regulatory requirements",
+      "Predictive maintenance deployment across 50+ CNC machines reducing downtime by 35%"
+    ],
+    "certifications": [
+      "AWS Advanced Partner",
+      "SAP Gold Partner",
+      "ISO 9001:2015"
+    ],
+    "tier": "Platinum",
+    "website": "https://www.techmahindra.com/",
+    "contactEmail": "info@techmahindra.com",
+    "headquarters": "Mumbai, India",
+    "employeeCount": 125000,
+    "yearFounded": 1986
+  },
+  {
+    "id": "p_bae4471f",
     "name": "SteelBridge Industries Ltd.",
     "description": "SteelBridge Industries is a heavy engineering conglomerate specializing in precision manufacturing, structural fabrication, and industrial component supply, serving sectors including automotive, oil & gas, power generation, and railways. They deliver smart factory transformation programs and provide manufacturing process improvement frameworks. With a strong focus on quality, they hold ISO 9001:2015 and AS9100D certifications.",
     "solutions": [
       "Smart Factory Transformation",
       "Manufacturing Process Improvement",
-      "Industrial Automation"
+      "Industrial Automation",
+      "Heavy Fabrication Management"
     ],
     "capabilities": [
       "Precision Machining",
@@ -30,39 +69,152 @@
     "contactEmail": "info@steelbridge.in",
     "headquarters": "Pune, India",
     "employeeCount": 3200,
-    "yearFounded": 1987,
-    "id": "p_bae4471f"
+    "yearFounded": 1987
   },
   {
-    "name": "Tech Mahindra Smart Factory Services",
-    "description": "Tech Mahindra Smart Factory Services is a leading provider of smart factory solutions, focusing on enabling intelligent manufacturing through a curated ecosystem of industry-leading partners. They offer a range of services, including connected operations, robotics and automation, and digital transformation. Their solutions aim to improve efficiency, reduce costs, and enhance overall manufacturing performance.",
+    "id": "p_7d4a19e2",
+    "name": "Siemens Digital Industries",
+    "description": "Siemens Digital Industries is an innovation leader in automation and digitalization. Partnering closely with manufacturing enterprises, they provide end-to-end industrial software, hardware automation, and IoT operating systems like MindSphere/Insights Hub to create comprehensive digital enterprise suites.",
     "solutions": [
-      "MES",
-      "Predictive Maintenance",
-      "Digital Twin"
+      "Digital Enterprise Suite",
+      "Industrial IoT (Insights Hub)",
+      "PLC & SCADA Automation",
+      "Process Simulation",
+      "Predictive Quality"
     ],
     "capabilities": [
-      "IoT",
-      "SAP",
-      "AWS IoT",
-      "Computer Vision"
+      "Siemens MindSphere",
+      "TIA Portal",
+      "Edge Computing",
+      "Digital Twin",
+      "PLC Automation",
+      "Cybersecurity for OT"
     ],
     "industries": [
       "Manufacturing"
     ],
     "useCases": [
-      "Implementation of a cloud-native MES for a food processing company, resulting in improved traceability and compliance with regulatory requirements"
+      "Automotive OEM assembly line synchronization using TIA Portal and digital twins",
+      "Electronics PCB manufacturing facility real-time energy and condition monitoring"
     ],
     "certifications": [
-      "AWS Advanced Partner",
-      "SAP Gold Partner"
+      "ISO 27001",
+      "IEC 62443 Certified",
+      "Siemens Global Technology Partner"
+    ],
+    "tier": "Platinum",
+    "website": "https://www.siemens.com/digital-industries",
+    "contactEmail": "contact.digitalindustries@siemens.com",
+    "headquarters": "Nuremberg, Germany",
+    "employeeCount": 72000,
+    "yearFounded": 1847
+  },
+  {
+    "id": "p_c58f912b",
+    "name": "Rockwell Automation",
+    "description": "Rockwell Automation is a dedicated industrial automation and digital transformation provider. With their FactoryTalk software suite and Allen-Bradley hardware, they deliver smart connected manufacturing systems, machine safety architectures, and industrial analytics.",
+    "solutions": [
+      "FactoryTalk MES",
+      "Asset Performance Management",
+      "Connected Enterprise Architecture",
+      "Safety & Security Solutions"
+    ],
+    "capabilities": [
+      "Allen-Bradley Hardware",
+      "FactoryTalk InnovationSuite",
+      "PTC ThingWorx Integration",
+      "Cloud SCADA",
+      "Industrial AR"
+    ],
+    "industries": [
+      "Manufacturing"
+    ],
+    "useCases": [
+      "Pharmaceutical packaging line serialization and OEE optimization",
+      "Heavy machinery component automated test bench and predictive maintenance"
+    ],
+    "certifications": [
+      "ISA/IEC 62443",
+      "ISO 9001:2015",
+      "PTC Strategic Alliance Partner"
+    ],
+    "tier": "Platinum",
+    "website": "https://www.rockwellautomation.com",
+    "contactEmail": "partnerships@ra.rockwell.com",
+    "headquarters": "Milwaukee, USA",
+    "employeeCount": 29000,
+    "yearFounded": 1903
+  },
+  {
+    "id": "p_41e9b870",
+    "name": "Cognex Machine Vision & AI",
+    "description": "Cognex Corporation is the global leader in industrial machine vision systems, barcode readers, and AI-driven deep learning inspection. Their systems inspect products for defects, guide automated robot arms, and track components throughout manufacturing lines.",
+    "solutions": [
+      "Automated Optical Inspection (AOI)",
+      "Deep Learning Defect Detection",
+      "High-Speed Barcode & 2D Code Verification",
+      "Vision-Guided Robotics"
+    ],
+    "capabilities": [
+      "In-Sight Vision Systems",
+      "VisionPro AI",
+      "Deep Learning OCR",
+      "High-Resolution 3D Inspection",
+      "Industrial Protocols"
+    ],
+    "industries": [
+      "Manufacturing"
+    ],
+    "useCases": [
+      "Automotive engine block surface scratch and defect inspection with 99.8% accuracy",
+      "Semiconductor wafer flaw detection and high-speed sorting"
+    ],
+    "certifications": [
+      "ISO 9001:2015",
+      "CE Mark Certified",
+      "Fanuc & KUKA Preferred Vision Partner"
     ],
     "tier": "Gold",
-    "website": "https://www.techmahindra.com/",
-    "contactEmail": "info@techmahindra.com",
-    "headquarters": "Mumbai, India",
-    "employeeCount": 125000,
-    "yearFounded": 1986,
-    "id": "p_b2c08056"
+    "website": "https://www.cognex.com",
+    "contactEmail": "sales@cognex.com",
+    "headquarters": "Natick, USA",
+    "employeeCount": 2700,
+    "yearFounded": 1981
+  },
+  {
+    "id": "p_83f60a1c",
+    "name": "KUKA Industrial Robotics",
+    "description": "KUKA is one of the world's premier suppliers of intelligent automation and robotics solutions. From collaborative robots (cobots) for flexible assembly lines to heavy-payload industrial articulated robots and AGV mobile platforms, KUKA powers next-generation flexible factories.",
+    "solutions": [
+      "Collaborative Robot (Cobot) Assembly",
+      "Autonomous Mobile Robots (AMRs / AGVs)",
+      "Automated Welding & Material Handling",
+      "Smart Factory Cell Automation"
+    ],
+    "capabilities": [
+      "KUKA.sim Virtual Commissioning",
+      "Robotics PLC Integration",
+      "Cobot Ergonomic Assist",
+      "Fleet Management for AMRs",
+      "Predictive Joint Maintenance"
+    ],
+    "industries": [
+      "Manufacturing"
+    ],
+    "useCases": [
+      "Aerospace composite panel drilling with robotic precision and tactile feedback",
+      "Consumer goods warehouse automated palletizing and material transport via AGVs"
+    ],
+    "certifications": [
+      "ISO 9001:2015",
+      "ISO 14001",
+      "Robotic Industries Association (RIA) Certified"
+    ],
+    "tier": "Silver",
+    "website": "https://www.kuka.com",
+    "contactEmail": "info@kuka.com",
+    "headquarters": "Augsburg, Germany",
+    "employeeCount": 15000,
+    "yearFounded": 1898
   }
 ]

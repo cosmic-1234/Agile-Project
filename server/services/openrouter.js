@@ -2,19 +2,20 @@
  * OpenRouter AI Service
  * ─────────────────────────────────────────────────────────────────────────────
  * OpenRouter routes to free open-source models with NO daily token limits.
- * Free tier: per-minute rate limits only (no daily cap that blocks 20+ analyses).
- *
- * Primary model : meta-llama/llama-3.3-70b-instruct:free
- *   → Same model as Groq but routed through OpenRouter's free tier
- * Fallback model: meta-llama/llama-3.1-8b-instruct:free (smaller, faster fallback)
- *
- * Get a FREE key at: https://openrouter.ai/ (no credit card required)
- * Set env var: OPENROUTER_API_KEY=sk-or-v1-...
+ * Automatically tries multiple active free models with robust JSON extraction
+ * and generous token limits to accommodate comprehensive partner evaluations.
  */
 
 const OPENROUTER_BASE = 'https://openrouter.ai/api/v1/chat/completions';
-const PRIMARY_MODEL   = 'meta-llama/llama-3.3-70b-instruct:free';
-const FALLBACK_MODEL  = 'meta-llama/llama-3.1-8b-instruct:free';
+
+// Resilient list of active free models on OpenRouter (verified responsive)
+const FREE_MODELS = [
+  'openrouter/free',
+  'dots-studio/dots-3-note-preview:free',
+  'liquid/lfm-2.5-2.6b:free',
+  'apodex/apodex-1.1-mini:free',
+  'nvidia/nemotron-3.5-lightning:free',
+];
 
 // ── Compact partner summary (reduces tokens by ~70% vs full JSON) ──────────
 function compactPartner(p) {
@@ -30,67 +31,114 @@ function compactPartner(p) {
   };
 }
 
-// ── Low-level chat wrapper ────────────────────────────────────────────────
-async function chat(systemPrompt, userMessage, model = PRIMARY_MODEL) {
+// ── Robust JSON parser that handles reasoning tokens, code fences, etc. ───
+function extractJSON(text) {
+  if (!text || typeof text !== 'string') {
+    throw new Error('Empty response from model');
+  }
+
+  // 1. Remove reasoning / think blocks (from deepseek, qwen, nemotron, dots, etc.)
+  let cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+
+  // 2. Remove markdown code fences
+  cleaned = cleaned.replace(/```(?:json)?([\s\S]*?)```/gi, '$1').trim();
+
+  // 3. Try direct parse
+  try {
+    return JSON.parse(cleaned);
+  } catch (_) {}
+
+  // 4. Extract outermost { ... }
+  const firstBrace = cleaned.indexOf('{');
+  const lastBrace = cleaned.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    const candidate = cleaned.slice(firstBrace, lastBrace + 1);
+    try {
+      return JSON.parse(candidate);
+    } catch (_) {
+      // Relax trailing commas or control characters
+      try {
+        const relaxed = candidate
+          .replace(/,\s*([}\]])/g, '$1')
+          .replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ');
+        return JSON.parse(relaxed);
+      } catch (_) {}
+    }
+  }
+
+  // 5. Extract outermost [ ... ]
+  const firstBracket = cleaned.indexOf('[');
+  const lastBracket = cleaned.lastIndexOf(']');
+  if (firstBracket !== -1 && lastBracket > firstBracket) {
+    const candidate = cleaned.slice(firstBracket, lastBracket + 1);
+    try {
+      return JSON.parse(candidate);
+    } catch (_) {}
+  }
+
+  throw new Error('Response did not contain parseable JSON: ' + cleaned.slice(0, 150));
+}
+
+// ── Low-level chat wrapper with automatic model rotation ──────────────────
+async function chat(systemPrompt, userMessage) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error('OPENROUTER_API_KEY is not set');
 
-  const response = await fetch(OPENROUTER_BASE, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type':  'application/json',
-      'HTTP-Referer':  'https://ahan-s-repo.onrender.com',
-      'X-Title':       'Partnership Fitment Agent',
-    },
-    body: JSON.stringify({
-      model,
-      temperature: 0.3,
-      max_tokens:  2048,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user',   content: userMessage  },
-      ],
-    }),
-  });
+  let lastError = null;
 
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`OpenRouter ${response.status}: ${errText}`);
-  }
+  for (const model of FREE_MODELS) {
+    try {
+      const response = await fetch(OPENROUTER_BASE, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type':  'application/json',
+          'HTTP-Referer':  'https://ahan-s-repo.onrender.com',
+          'X-Title':       'Partnership Fitment Agent',
+        },
+        body: JSON.stringify({
+          model,
+          temperature: 0.2,
+          max_tokens:  8192,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user',   content: userMessage  },
+          ],
+        }),
+      });
 
-  const json = await response.json();
+      if (!response.ok) {
+        const errText = await response.text();
+        console.warn(`[OpenRouter] Model ${model} returned HTTP ${response.status}: ${errText.slice(0, 120)}`);
+        lastError = new Error(`OpenRouter ${response.status}: ${errText}`);
+        continue;
+      }
 
-  // Handle OpenRouter free-model rate limit (429)
-  if (json.error) {
-    throw new Error(`OpenRouter error: ${JSON.stringify(json.error)}`);
-  }
+      const json = await response.json();
+      if (json.error) {
+        console.warn(`[OpenRouter] Model ${model} error: ${JSON.stringify(json.error).slice(0, 120)}`);
+        lastError = new Error(`OpenRouter error: ${JSON.stringify(json.error)}`);
+        continue;
+      }
 
-  const text = (json.choices?.[0]?.message?.content || '').trim();
-  const clean = text.replace(/^```(?:json)?/m, '').replace(/```$/m, '').trim();
-  try {
-    return JSON.parse(clean);
-  } catch {
-    const match = clean.match(/\{[\s\S]*\}/);
-    if (match) return JSON.parse(match[0]);
-    // Try fallback model if parse fails
-    if (model === PRIMARY_MODEL) {
-      console.warn('[OpenRouter] Parse failed on primary model, retrying with fallback...');
-      return chat(systemPrompt, userMessage, FALLBACK_MODEL);
+      const rawText = json.choices?.[0]?.message?.content || json.choices?.[0]?.message?.reasoning || '';
+      const parsed = extractJSON(rawText);
+      return parsed;
+    } catch (err) {
+      console.warn(`[OpenRouter] Model ${model} failed (${err.message}). Trying next free model...`);
+      lastError = err;
     }
-    throw new Error('OpenRouter response was not valid JSON');
   }
+
+  throw lastError || new Error('All OpenRouter free models failed');
 }
 
-// ── System prompts (concise to save tokens) ──────────────────────────────
+// ── System prompts ────────────────────────────────────────────────────────
 const SYSTEM = {
-  analyze: `You are a Partnership Fitment Analyst for a smart manufacturing IT company. Analyze client problems and match them to the best technology partners. Respond in valid JSON only — no markdown, no code fences.`,
-
-  extract: `You are a document analysis expert. Extract structured information from documents. Respond in valid JSON only — no markdown, no code fences.`,
-
-  compare: `You are a Partnership Fitment Analyst. Compare technology partners against a client problem. Respond in valid JSON only — no markdown, no code fences.`,
-
-  profile: `You are a corporate partner profiling assistant for manufacturing technology. Extract partner information from documents. Respond in valid JSON only — no markdown, no code fences.`,
+  analyze: `You are a Partnership Fitment Analyst for a smart manufacturing IT company. Analyze client problems and match them to the best technology partners. Respond in valid JSON only.`,
+  extract: `You are a document analysis expert. Extract structured information from documents. Respond in valid JSON only.`,
+  compare: `You are a Partnership Fitment Analyst. Compare technology partners against a client problem. Respond in valid JSON only.`,
+  profile: `You are a corporate partner profiling assistant for manufacturing technology. Extract partner information from documents. Respond in valid JSON only.`,
 };
 
 // ── analyzeProblem ───────────────────────────────────────────────────────
@@ -174,7 +222,7 @@ Return JSON:
       "riskFactors": ["string"],
       "engagementApproach": "string",
       "estimatedTimeline": "string",
-      "dimensionScores": { "dimension": score }
+      "dimensionScores": { "dimension": 85 }
     }
   ],
   "overallRecommendation": {

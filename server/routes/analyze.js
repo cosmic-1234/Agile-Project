@@ -66,12 +66,12 @@ router.post('/text', async (req, res) => {
     );
     if (isRateLimit) {
       return res.status(503).json({
-        error: 'AI service temporarily unavailable',
-        details: 'The AI provider has reached its daily usage limit. Please try again in a few hours, or contact your administrator to configure an additional API key.',
+        error: 'AI provider is temporarily busy',
+        details: error.message || 'Upstream provider is temporarily busy. Please wait a moment and retry.',
         code: 'RATE_LIMIT_EXCEEDED'
       });
     }
-    res.status(500).json({ error: 'Analysis failed', details: error.message });
+    res.status(500).json({ error: error.message || 'Analysis failed', details: error.message });
   }
 });
 
@@ -161,12 +161,12 @@ Success Criteria: ${safeJoin(extraction.successCriteria)}
     );
     if (isRateLimit) {
       return res.status(503).json({
-        error: 'AI service temporarily unavailable',
-        details: 'The AI provider has reached its daily usage limit. Please try again in a few hours.',
+        error: 'AI provider is temporarily busy',
+        details: error.message || 'Upstream provider is temporarily busy. Please wait a moment and retry.',
         code: 'RATE_LIMIT_EXCEEDED'
       });
     }
-    res.status(500).json({ error: 'Document analysis failed', details: error.message });
+    res.status(500).json({ error: error.message || 'Document analysis failed', details: error.message });
   }
 });
 

@@ -4,8 +4,8 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const apiKey = process.env.GEMINI_API_KEY;
 const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
 
-// Use gemini-2.0-flash as the default model — 1500 req/day free tier (vs only 20/day for 2.5-flash)
-const MODEL_NAME = 'gemini-2.0-flash';
+// Use gemini-3.8-flash as the default model
+const MODEL_NAME = 'gemini-3.8-flash';
 
 const SYSTEM_PROMPTS = {
   analyze: `You are an expert Partnership Fitment Analyst for a multinational IT services company. Your role is to analyze client problems and map them to the most suitable technology partners from our partner ecosystem.

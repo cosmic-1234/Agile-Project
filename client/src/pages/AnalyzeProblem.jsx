@@ -42,9 +42,9 @@ export default function AnalyzeProblem() {
       if (!response.ok) {
         const errData = await response.json();
         if (response.status === 503 || errData.code === 'RATE_LIMIT_EXCEEDED') {
-          throw new Error('⚠️ AI service is temporarily unavailable (daily usage limit reached). Please try again in a few hours.');
+          throw new Error(errData.details || errData.error || '⚠️ AI provider is temporarily busy. Please wait a moment and try again.');
         }
-        throw new Error(errData.error || 'Analysis failed');
+        throw new Error(errData.details || errData.error || 'Analysis failed');
       }
       const data = await response.json();
       setResult(data);
@@ -84,9 +84,9 @@ export default function AnalyzeProblem() {
       if (!response.ok) {
         const errData = await response.json();
         if (response.status === 503 || errData.code === 'RATE_LIMIT_EXCEEDED') {
-          throw new Error('⚠️ AI service is temporarily unavailable (daily usage limit reached). Please try again in a few hours.');
+          throw new Error(errData.details || errData.error || '⚠️ AI provider is temporarily busy. Please wait a moment and try again.');
         }
-        throw new Error(errData.error || 'Document analysis failed');
+        throw new Error(errData.details || errData.error || 'Document analysis failed');
       }
       const data = await response.json();
       setResult(data);
@@ -218,7 +218,7 @@ export default function AnalyzeProblem() {
 
   return (
     <div>
-      <BannerCard showCredits={true} />
+      <BannerCard />
 
       {!result && !loading && (
         <>

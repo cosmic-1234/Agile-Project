@@ -1,24 +1,25 @@
 /**
  * AI Dispatcher — Multi-Provider with Automatic Fallback
  * ─────────────────────────────────────────────────────────────────────────────
- * Provider priority (configured via env vars):
- *   1. OpenRouter  — FREE, no daily token limits, Llama 3.3 70B
- *                    Set: OPENROUTER_API_KEY=sk-or-v1-...
- *   2. Groq        — FREE, 100K tokens/day limit (resets midnight UTC)
- *                    Supports up to 3 keys for rotation:
- *                    Set: GROQ_API_KEY=gsk_...
- *                         GROQ_API_KEY_2=gsk_...   (optional)
- *                         GROQ_API_KEY_3=gsk_...   (optional)
- *
- * Token efficiency: prompts are trimmed to use ~70% fewer tokens than before.
- * Each analysis uses ~1,200–1,800 tokens (vs 4,500–6,000 before).
- * 20 analyses = ~30,000 tokens max — well within any provider limit.
+ * Provider priority:
+ *   1. OpenRouter  — FREE, no daily token limits, multi-model fallback
+ *   2. Groq        — FREE, 100K tokens/day limit
+ *   3. Gemini      — Google Gemini 3.8 Flash (starts with AIzaSy)
  */
 
 const openrouter = require('./openrouter');
 const groq = require('./groq');
+const gemini = require('./gemini');
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+function isValidKey(key) {
+  return typeof key === 'string' && key.trim().length > 10 && !key.includes('your-') && !key.includes('placeholder');
+}
+
+function isValidGeminiKey(key) {
+  return typeof key === 'string' && key.trim().startsWith('AIzaSy');
+}
 
 // ── Groq multi-key rotation ──────────────────────────────────────────────
 function getGroqKeys() {
@@ -26,15 +27,7 @@ function getGroqKeys() {
     process.env.GROQ_API_KEY,
     process.env.GROQ_API_KEY_2,
     process.env.GROQ_API_KEY_3,
-  ].filter(Boolean);
-}
-
-// Override groq's API key dynamically
-function setGroqKey(key) {
-  process.env.GROQ_API_KEY = key;
-  // Force re-init of groq client by clearing the require cache
-  const id = require.resolve('./groq');
-  delete require.cache[id];
+  ].filter(isValidKey);
 }
 
 function isRateLimitError(err) {
@@ -58,12 +51,11 @@ async function tryGroq(serviceMethod, ...args) {
 
   let lastError;
   for (const key of keys) {
-    // Temporarily set this key
     const originalKey = process.env.GROQ_API_KEY;
     process.env.GROQ_API_KEY = key;
 
     try {
-      const groqModule = require('./groq'); // fresh require (may be cached)
+      const groqModule = require('./groq');
       const result = await groqModule[serviceMethod](...args);
       return result;
     } catch (err) {
@@ -72,13 +64,13 @@ async function tryGroq(serviceMethod, ...args) {
 
       if (isDailyQuotaError(err)) {
         console.warn(`[AI] Groq key ...${key.slice(-6)} hit daily quota. Trying next key...`);
-        continue; // try next key
+        continue;
       } else if (isRateLimitError(err)) {
         console.warn(`[AI] Groq transient rate limit. Waiting 8s...`);
         await sleep(8000);
         continue;
       } else {
-        break; // non-rate-limit error, stop trying keys
+        break;
       }
     }
   }
@@ -87,8 +79,10 @@ async function tryGroq(serviceMethod, ...args) {
 
 // ── Main dispatcher ──────────────────────────────────────────────────────
 async function invoke(serviceMethod, ...args) {
-  // 1. Try OpenRouter first (no daily limits)
-  if (process.env.OPENROUTER_API_KEY) {
+  let lastError = null;
+
+  // 1. Try OpenRouter first if valid key is set
+  if (isValidKey(process.env.OPENROUTER_API_KEY)) {
     try {
       console.log(`[AI] OpenRouter '${serviceMethod}'...`);
       const result = await openrouter[serviceMethod](...args);
@@ -96,16 +90,11 @@ async function invoke(serviceMethod, ...args) {
       return result;
     } catch (err) {
       console.error(`[AI] OpenRouter '${serviceMethod}' failed: ${err.message}`);
-      if (isRateLimitError(err)) {
-        // Per-minute rate limit on free tier — short wait then try Groq
-        console.warn('[AI] OpenRouter rate limited. Waiting 15s then falling back to Groq...');
-        await sleep(15000);
-      }
-      // Fall through to Groq
+      lastError = err;
     }
   }
 
-  // 2. Try Groq (with multi-key rotation)
+  // 2. Try Groq if valid key is set
   if (getGroqKeys().length > 0) {
     try {
       console.log(`[AI] Groq '${serviceMethod}'...`);
@@ -114,24 +103,44 @@ async function invoke(serviceMethod, ...args) {
       return result;
     } catch (err) {
       console.error(`[AI] Groq '${serviceMethod}' all keys exhausted: ${err.message}`);
-      throw err;
+      lastError = err;
     }
   }
 
-  throw new Error('No AI provider configured. Please set OPENROUTER_API_KEY or GROQ_API_KEY in environment variables.');
+  // 3. Try Gemini ONLY if a valid AIzaSy key is set
+  if (isValidGeminiKey(process.env.GEMINI_API_KEY)) {
+    try {
+      console.log(`[AI] Gemini '${serviceMethod}'...`);
+      const result = await gemini[serviceMethod](...args);
+      console.log(`[AI] Gemini '${serviceMethod}' ✓`);
+      return result;
+    } catch (err) {
+      console.error(`[AI] Gemini '${serviceMethod}' failed: ${err.message}`);
+      lastError = err;
+    }
+  }
+
+  if (lastError) {
+    throw lastError;
+  }
+
+  throw new Error('No valid AI API key configured. Please set OPENROUTER_API_KEY in server/.env.');
 }
 
 // ── Active provider label for health endpoint ───────────────────────────
 function getActiveProviderName() {
-  if (process.env.OPENROUTER_API_KEY) return 'openrouter-llama-3.3-70b';
-  if (process.env.GROQ_API_KEY) return 'groq-llama-3.3-70b';
+  if (isValidKey(process.env.OPENROUTER_API_KEY)) return 'openrouter-free';
+  if (getGroqKeys().length > 0) return 'groq-llama-3.3-70b';
+  if (isValidGeminiKey(process.env.GEMINI_API_KEY)) return 'gemini-3.8-flash';
   return 'none';
 }
 
 module.exports = {
+  isValidKey,
+  isValidGeminiKey,
   analyzeProblem:     (...args) => invoke('analyzeProblem',     ...args),
   extractDocument:    (...args) => invoke('extractDocument',    ...args),
   comparePartners:    (...args) => invoke('comparePartners',    ...args),
   addPartnerFromText: (...args) => invoke('addPartnerFromText', ...args),
-  activeProviderName: getActiveProviderName(),
+  activeProviderName: getActiveProviderName,
 };

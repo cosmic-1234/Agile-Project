@@ -42,59 +42,62 @@ if (fs.existsSync(clientDistPath)) {
 
 // Health check
 app.get('/api/health', (req, res) => {
-  const { activeProviderName } = require('./services/ai');
+  const { activeProviderName, isValidKey, isValidGeminiKey } = require('./services/ai');
+  const hasValidKey = isValidKey(process.env.OPENROUTER_API_KEY) ||
+                      isValidKey(process.env.GROQ_API_KEY) ||
+                      isValidGeminiKey(process.env.GEMINI_API_KEY);
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    apiKeyConfigured: !!(process.env.OPENROUTER_API_KEY || process.env.GROQ_API_KEY),
-    activeProvider: activeProviderName,
-    openrouterConfigured: !!process.env.OPENROUTER_API_KEY,
-    groqConfigured: !!process.env.GROQ_API_KEY,
-    groqKeys: [process.env.GROQ_API_KEY, process.env.GROQ_API_KEY_2, process.env.GROQ_API_KEY_3].filter(Boolean).length,
+    apiKeyConfigured: hasValidKey,
+    activeProvider: typeof activeProviderName === 'function' ? activeProviderName() : activeProviderName,
+    openrouterConfigured: isValidKey(process.env.OPENROUTER_API_KEY),
+    groqConfigured: isValidKey(process.env.GROQ_API_KEY),
+    geminiConfigured: isValidGeminiKey(process.env.GEMINI_API_KEY),
+    groqKeys: [process.env.GROQ_API_KEY, process.env.GROQ_API_KEY_2, process.env.GROQ_API_KEY_3].filter(isValidKey).length,
   });
 });
 
-// AI Credits endpoint — fetches live usage from OpenRouter
+// AI Credits endpoint — fetches live usage from OpenRouter or returns provider status
 app.get('/api/credits', async (req, res) => {
   try {
-    const provider = process.env.OPENROUTER_API_KEY ? 'openrouter' : 'groq';
+    const { isValidKey } = require('./services/ai');
 
-    if (process.env.OPENROUTER_API_KEY) {
-      // OpenRouter provides key info: usage, limit, is_free_tier
-      const resp = await fetch('https://openrouter.ai/api/v1/auth/key', {
-        headers: { 'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}` }
-      });
-      if (!resp.ok) throw new Error(`OpenRouter auth check failed: ${resp.status}`);
-      const json = await resp.json();
-      const data = json.data || json;
-      const isFree = data.is_free_tier ?? true;
-      const usage  = data.usage  ?? 0;  // credits used (USD)
-      const limit  = data.limit  ?? null; // null = unlimited on free tier
+    if (isValidKey(process.env.OPENROUTER_API_KEY)) {
+      try {
+        const resp = await fetch('https://openrouter.ai/api/v1/auth/key', {
+          headers: { 'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}` }
+        });
+        if (resp.ok) {
+          const json = await resp.json();
+          const data = json.data || json;
+          const isFree = data.is_free_tier ?? true;
+          const usage  = data.usage  ?? 0;
+          const limit  = data.limit  ?? null;
 
-      return res.json({
-        provider: 'OpenRouter (Llama 3.3 70B)',
-        isFree,
-        // Free tier: no hard credit limit, just rate limits per minute
-        creditsUsed:      isFree ? null : usage,
-        creditsRemaining: isFree ? null : (limit ? limit - usage : null),
-        creditLimit:      isFree ? null : limit,
-        usagePct:         (!isFree && limit) ? Math.round((usage / limit) * 100) : 0,
-        // Rate limit info from OpenRouter
-        rateLimit: data.rate_limit || null,
-        status: isFree ? 'free_unlimited' : (limit && usage >= limit * 0.9 ? 'near_limit' : 'ok'),
-        label: isFree
-          ? '∞ Free Tier — No Daily Limit'
-          : `$${(limit - usage).toFixed(4)} remaining of $${limit?.toFixed(2)}`,
-      });
+          return res.json({
+            provider: 'OpenRouter (Llama 3.3 70B)',
+            isFree,
+            creditsUsed:      isFree ? null : usage,
+            creditsRemaining: isFree ? null : (limit ? limit - usage : null),
+            creditLimit:      isFree ? null : limit,
+            usagePct:         (!isFree && limit) ? Math.round((usage / limit) * 100) : 0,
+            rateLimit:        data.rate_limit || null,
+            status:           isFree ? 'free_unlimited' : (limit && usage >= limit * 0.9 ? 'near_limit' : 'ok'),
+            label:            isFree ? '∞ Free Tier — No Daily Limit' : `$${(limit - usage).toFixed(4)} remaining of $${limit?.toFixed(2)}`,
+          });
+        }
+      } catch (e) {
+        console.warn('[Credits] OpenRouter fetch failed, falling through:', e.message);
+      }
     }
 
-    // Groq fallback info
-    if (process.env.GROQ_API_KEY) {
+    if (isValidKey(process.env.GROQ_API_KEY)) {
       const groqKeys = [
         process.env.GROQ_API_KEY,
         process.env.GROQ_API_KEY_2,
         process.env.GROQ_API_KEY_3,
-      ].filter(Boolean).length;
+      ].filter(isValidKey).length;
       return res.json({
         provider: 'Groq (Llama 3.3 70B)',
         isFree: true,
@@ -106,10 +109,36 @@ app.get('/api/credits', async (req, res) => {
       });
     }
 
-    res.status(503).json({ error: 'No AI provider configured' });
+    const { isValidGeminiKey } = require('./services/ai');
+    if (isValidGeminiKey(process.env.GEMINI_API_KEY)) {
+      return res.json({
+        provider: 'Google Gemini (3.8 Flash)',
+        isFree: true,
+        creditsUsed: null,
+        creditsRemaining: null,
+        status: 'ok',
+        label: 'Gemini Free Tier · 1,500 req/day',
+      });
+    }
+
+    res.json({
+      provider: 'None',
+      isFree: true,
+      creditsUsed: null,
+      creditsRemaining: null,
+      status: 'no_key',
+      label: '⚠️ No API key set in server/.env',
+    });
   } catch (err) {
     console.error('[Credits]', err.message);
-    res.status(500).json({ error: 'Failed to fetch credit info', details: err.message });
+    res.json({
+      provider: 'None',
+      isFree: true,
+      creditsUsed: null,
+      creditsRemaining: null,
+      status: 'error',
+      label: 'API key not configured',
+    });
   }
 });
 
@@ -123,16 +152,16 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, async () => {
-  const { activeProviderName } = require('./services/ai');
+  const { activeProviderName, isValidKey, isValidGeminiKey } = require('./services/ai');
   const { useMongo, getPartners } = require('./services/db');
+  const active = typeof activeProviderName === 'function' ? activeProviderName() : activeProviderName;
   console.log(`\n  Partnership Fitment Agent API Server`);
   console.log(`  ────────────────────────────────────`);
   console.log(`  Running on: http://localhost:${PORT}`);
-  console.log(`  OpenRouter (Llama 3.3): ${process.env.OPENROUTER_API_KEY ? 'Configured ✓ PRIMARY' : 'NOT SET — get free key at openrouter.ai'}`);
-  console.log(`  Groq (Llama 3.3 70B):  ${process.env.GROQ_API_KEY ? 'Configured ✓ fallback' : 'NOT SET'}`);
-  const groqKeys = [process.env.GROQ_API_KEY_2, process.env.GROQ_API_KEY_3].filter(Boolean).length;
-  if (groqKeys) console.log(`  Groq extra keys:       ${groqKeys} additional rotation key(s) ✓`);
-  console.log(`  Active Provider:       ${activeProviderName.toUpperCase()} ⚡`);
+  console.log(`  OpenRouter (Free):     ${isValidKey(process.env.OPENROUTER_API_KEY) ? 'Configured ✓ PRIMARY' : 'NOT SET'}`);
+  console.log(`  Groq (Llama 3.3 70B):  ${isValidKey(process.env.GROQ_API_KEY) ? 'Configured ✓' : 'NOT SET'}`);
+  console.log(`  Gemini (3.8 Flash):    ${isValidGeminiKey(process.env.GEMINI_API_KEY) ? 'Configured ✓' : 'NOT SET'}`);
+  console.log(`  Active Provider:       ${active.toUpperCase()} ⚡`);
   console.log(`  Database Mode:      ${useMongo ? 'MongoDB 🗄️' : 'Local JSON Files 📁'}`);
   
   if (useMongo) {
